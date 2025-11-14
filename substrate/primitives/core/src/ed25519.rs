@@ -17,6 +17,8 @@
 
 //! Simple Ed25519 API.
 
+// My version of Ed25519
+
 use crate::{
 	crypto::{
 		ByteArray, CryptoType, CryptoTypeId, DeriveError, DeriveJunction, Pair as TraitPair,

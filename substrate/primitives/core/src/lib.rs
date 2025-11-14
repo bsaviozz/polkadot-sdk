@@ -80,6 +80,8 @@ pub mod ed25519;
 pub mod paired_crypto;
 pub mod sr25519;
 
+pub mod foo;
+
 #[cfg(feature = "bls-experimental")]
 pub use bls::{bls377, bls381};
 #[cfg(feature = "bls-experimental")]

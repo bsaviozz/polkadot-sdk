@@ -50,6 +50,7 @@ substrate-bip39 = { workspace = true }
 thiserror = { optional = true, workspace = true }
 tracing = { optional = true, workspace = true, default-features = true }
 zeroize = { workspace = true }
+qp-rusty-crystals-dilithium = "2.0.0"
 
 # full crypto
 array-bytes = { workspace = true, default-features = true }

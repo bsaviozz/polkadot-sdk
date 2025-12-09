@@ -77,7 +77,10 @@ use sp_core::{
 	ecdsa, ed25519,
 	hash::{H256, H512},
 	sr25519,
+	dilithium
 };
+
+use sp_io::hashing::blake2_256;
 
 use alloc::vec;
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
@@ -275,6 +278,16 @@ impl BuildStorage for () {
 /// Consensus engine unique ID.
 pub type ConsensusEngineId = [u8; 4];
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(
+    Eq, PartialEq, Clone, Encode, Decode, DecodeWithMemTracking, MaxEncodedLen, RuntimeDebug, TypeInfo,
+)]
+pub struct DilithiumMultiSig {
+    pub signature: dilithium::Signature,
+    pub public: dilithium::Public,
+}
+
+
 /// Signature verify that can work with any known signature types.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(
@@ -297,6 +310,7 @@ pub enum MultiSignature {
 	Ecdsa(ecdsa::Signature),
 	/// An ECDSA/SECP256k1 signature but with a different address derivation.
 	Eth(ecdsa::KeccakSignature),
+	Dilithium(DilithiumMultiSig),
 }
 
 impl From<ed25519::Signature> for MultiSignature {
@@ -350,6 +364,12 @@ impl TryFrom<MultiSignature> for ecdsa::Signature {
 	}
 }
 
+impl From<DilithiumMultiSig> for MultiSignature {
+    fn from(x: DilithiumMultiSig) -> Self {
+        MultiSignature::Dilithium(x)
+    }
+}
+
 /// Public key for any known crypto algorithm.
 #[derive(
 	Eq,
@@ -378,6 +398,7 @@ pub enum MultiSigner {
 	/// `pallet_revive`. This means that the same public key controls two accounts. But
 	/// this is already the case due to `pallet_revive`'s address mapping.
 	Eth(ecdsa::KeccakPublic),
+	Dilithium(dilithium::Public),
 }
 
 impl FromEntropy for MultiSigner {
@@ -406,6 +427,7 @@ impl AsRef<[u8]> for MultiSigner {
 			Self::Sr25519(ref who) => who.as_ref(),
 			Self::Ecdsa(ref who) => who.as_ref(),
 			Self::Eth(ref who) => who.as_ref(),
+			Self::Dilithium(ref who) => who.as_ref(),
 		}
 	}
 }
@@ -428,6 +450,7 @@ impl traits::IdentifyAccount for MultiSigner {
 				address[..20].copy_from_slice(eth_address);
 				address.into()
 			},
+			Self::Dilithium(who) => blake2_256(who.as_ref()).into(),
 		}
 	}
 }
@@ -483,6 +506,23 @@ impl TryFrom<MultiSigner> for ecdsa::Public {
 	}
 }
 
+impl From<dilithium::Public> for MultiSigner {
+    fn from(pk: dilithium::Public) -> Self {
+        MultiSigner::Dilithium(pk)
+    }
+}
+
+impl TryFrom<MultiSigner> for dilithium::Public {
+    type Error = ();
+    fn try_from(ms: MultiSigner) -> Result<Self, Self::Error> {
+        match ms {
+            MultiSigner::Dilithium(pk) => Ok(pk),
+            _ => Err(()),
+        }
+    }
+}
+
+
 #[cfg(feature = "std")]
 impl std::fmt::Display for MultiSigner {
 	fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -491,6 +531,7 @@ impl std::fmt::Display for MultiSigner {
 			Self::Sr25519(who) => write!(fmt, "sr25519: {}", who),
 			Self::Ecdsa(who) => write!(fmt, "ecdsa: {}", who),
 			Self::Eth(who) => write!(fmt, "eth: {}", who),
+			Self::Dilithium(who) => write!(fmt, "dilithium: {:?}", who),
 		}
 	}
 }
@@ -514,6 +555,20 @@ impl Verify for MultiSignature {
 						&MultiSigner::Eth(pubkey.into()).into_account() == signer
 					})
 			},
+			Self::Dilithium(ds) => {
+				// Recompute AccountId32 from the included public key
+				let derived_id: AccountId32 = blake2_256(ds.public.as_ref()).into();
+				if &derived_id != signer {
+					return false;
+				}
+
+				// Verify the signature
+				dilithium::verify_signature(
+					&ds.signature,
+					msg.get(),
+					&ds.public,
+				)
+			}
 		}
 	}
 }

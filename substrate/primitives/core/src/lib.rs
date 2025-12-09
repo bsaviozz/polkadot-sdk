@@ -79,6 +79,7 @@ pub mod ecdsa;
 pub mod ed25519;
 pub mod paired_crypto;
 pub mod sr25519;
+pub mod dilithium;
 
 pub mod foo;
 

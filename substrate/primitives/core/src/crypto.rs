@@ -599,6 +599,14 @@ impl From<ed25519::Public> for AccountId32 {
 	}
 }
 
+impl From<crate::dilithium::Public> for AccountId32 {
+    fn from(pk: crate::dilithium::Public) -> Self {
+        // Hash the 2592-byte key into a standard 32-byte account ID
+        sp_crypto_hashing::blake2_256(pk.as_ref()).into()
+    }
+}
+
+
 #[cfg(feature = "std")]
 impl std::fmt::Display for AccountId32 {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

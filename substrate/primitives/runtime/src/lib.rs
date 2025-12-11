@@ -118,8 +118,8 @@ pub use sp_core::{
 #[cfg(feature = "std")]
 pub use sp_core::{bounded_btree_map, bounded_vec};
 
-/// Re-export `RuntimeDebug`, to avoid dependency clutter.
-pub use sp_core::RuntimeDebug;
+/// Re-export `Debug`, to avoid dependency clutter.
+pub use core::fmt::Debug;
 
 /// Re-export big_uint stuff.
 pub use sp_arithmetic::biguint;
@@ -291,15 +291,7 @@ pub struct DilithiumMultiSig {
 /// Signature verify that can work with any known signature types.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(
-	Eq,
-	PartialEq,
-	Clone,
-	Encode,
-	Decode,
-	DecodeWithMemTracking,
-	MaxEncodedLen,
-	RuntimeDebug,
-	TypeInfo,
+	Eq, PartialEq, Clone, Encode, Decode, DecodeWithMemTracking, MaxEncodedLen, Debug, TypeInfo,
 )]
 pub enum MultiSignature {
 	/// An Ed25519 signature.
@@ -372,16 +364,7 @@ impl From<DilithiumMultiSig> for MultiSignature {
 
 /// Public key for any known crypto algorithm.
 #[derive(
-	Eq,
-	PartialEq,
-	Ord,
-	PartialOrd,
-	Clone,
-	Encode,
-	Decode,
-	DecodeWithMemTracking,
-	RuntimeDebug,
-	TypeInfo,
+	Eq, PartialEq, Ord, PartialOrd, Clone, Encode, Decode, DecodeWithMemTracking, Debug, TypeInfo,
 )]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MultiSigner {
@@ -574,7 +557,7 @@ impl Verify for MultiSignature {
 }
 
 /// Signature verify that can work with any known signature types..
-#[derive(Eq, PartialEq, Clone, Default, Encode, Decode, RuntimeDebug, TypeInfo)]
+#[derive(Eq, PartialEq, Clone, Default, Encode, Decode, Debug, TypeInfo)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct AnySignature(H512);
 
@@ -1200,7 +1183,7 @@ pub enum ExtrinsicInclusionMode {
 }
 
 /// Simple blob that hold a value in an encoded form without committing to its type.
-#[derive(Decode, Encode, PartialEq, Eq, Clone, RuntimeDebug, TypeInfo)]
+#[derive(Decode, Encode, PartialEq, Eq, Clone, Debug, TypeInfo)]
 pub struct OpaqueValue(Vec<u8>);
 impl OpaqueValue {
 	/// Create a new `OpaqueValue` using the given encoded representation.

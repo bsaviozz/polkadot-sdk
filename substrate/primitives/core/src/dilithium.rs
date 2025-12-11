@@ -117,17 +117,32 @@ mod tests {
     use crate::crypto::Pair as TraitPair;
 
     #[test]
-    fn seed_pair_should_sign_and_verify() {
+    fn dilithium_sign_and_verify() {
+        // Deterministic seed → deterministic keypair
         let seed: Seed = *b"12345678901234567890123456789012";
         let pair = Pair::from_seed(&seed);
         let public = pair.public();
-        let msg = b"Test Dilithium message";
+        let message = b"Test Dilithium message";
 
         #[cfg(feature = "full_crypto")]
         {
-            let sig = pair.sign(msg);
-            // Uses the generic SignatureBytes::verify helper via CryptoType
-            assert!(sig.verify(msg.as_slice(), &public));
+            // 1) Sign message
+            let sig = pair.sign(message);
+
+            // 2) Verify valid signature
+            assert!(
+                Pair::verify(&sig, message, &public),
+                "Dilithium verification must succeed for a valid signature"
+            );
+
+            // 3) Tamper signature → must fail
+            let mut bad = sig.clone();
+            bad.0[0] ^= 0x01;
+
+            assert!(
+                !Pair::verify(&bad, message, &public),
+                "Dilithium verification must fail for a tampered signature"
+            );
         }
     }
 }

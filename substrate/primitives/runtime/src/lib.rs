@@ -280,7 +280,15 @@ pub type ConsensusEngineId = [u8; 4];
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(
-    Eq, PartialEq, Clone, Encode, Decode, DecodeWithMemTracking, MaxEncodedLen, RuntimeDebug, TypeInfo,
+    Eq,
+    PartialEq,
+    Clone,
+    Encode,
+    Decode,
+    DecodeWithMemTracking,
+    MaxEncodedLen,
+    Debug,
+    TypeInfo,
 )]
 pub struct DilithiumMultiSig {
     pub signature: dilithium::Signature,

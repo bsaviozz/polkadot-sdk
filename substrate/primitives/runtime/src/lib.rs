@@ -547,12 +547,12 @@ impl Verify for MultiSignature {
 					})
 			},
 			Self::Dilithium(ds) => {
-				sp_io::misc::print_utf8("VERIFY: entered Dilithium arm");
+				sp_io::misc::print_utf8(b"VERIFY: entered Dilithium arm");
 
 				// Recompute AccountId32 from the included public key
 				let derived_id: AccountId32 = blake2_256(ds.public.as_ref()).into();
 				if &derived_id != signer {
-					sp_io::misc::print_utf8("VERIFY: Dilithium derived_id != signer");
+					sp_io::misc::print_utf8(b"VERIFY: Dilithium derived_id != signer");
 					return false;
 				}
 
@@ -565,9 +565,9 @@ impl Verify for MultiSignature {
 				)*/
 				let ok = dilithium::verify_signature(&ds.signature, msg.get(), &ds.public);
 				if ok {
-					sp_io::misc::print_utf8("VERIFY: Dilithium signature OK");
+					sp_io::misc::print_utf8(b"VERIFY: Dilithium signature OK");
 				} else {
-					sp_io::misc::print_utf8("VERIFY: Dilithium signature FAIL");
+					sp_io::misc::print_utf8(b"VERIFY: Dilithium signature FAIL");
 				}
 				ok
 			}

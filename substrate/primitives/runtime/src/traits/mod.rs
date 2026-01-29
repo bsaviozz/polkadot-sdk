@@ -26,6 +26,9 @@ use crate::{
 	},
 	DispatchResult, KeyTypeId, OpaqueExtrinsic,
 };
+
+use crate::{AccountId32, DilithiumMultiSig};
+
 use alloc::vec::Vec;
 use codec::{
 	Codec, Decode, DecodeWithMemTracking, Encode, EncodeLike, FullCodec, HasCompact, MaxEncodedLen,
@@ -105,6 +108,14 @@ impl IdentifyAccount for sp_core::ecdsa::Public {
 	}
 }
 
+impl IdentifyAccount for sp_core::dilithium::Public {
+	type AccountId = AccountId32;
+
+	fn into_account(self) -> Self::AccountId {
+		AccountId32::from(sp_io::hashing::blake2_256(self.as_ref()))
+	}
+}
+
 #[cfg(feature = "bls-experimental")]
 impl IdentifyAccount for sp_core::ecdsa_bls381::Public {
 	type AccountId = Self;
@@ -155,6 +166,26 @@ impl Verify for sp_core::ecdsa::Signature {
 		}
 	}
 }
+
+impl Verify for DilithiumMultiSig {
+    type Signer = sp_core::dilithium::Public;
+
+    fn verify<L: Lazy<[u8]>>(&self, mut msg: L, signer: &AccountId32) -> bool {
+        // Bind the included public key to the expected signer AccountId32.
+        let derived: AccountId32 = sp_io::hashing::blake2_256(self.public.as_ref()).into();
+        if &derived != signer {
+            return false;
+        }
+
+        // Verify signature using Dilithium backend verify.
+        <sp_core::dilithium::Pair as sp_core::crypto::Pair>::verify(
+            &self.signature,
+            msg.get(),
+            &self.public,
+        )
+    }
+}
+
 
 #[cfg(feature = "bls-experimental")]
 impl Verify for sp_core::ecdsa_bls381::Signature {

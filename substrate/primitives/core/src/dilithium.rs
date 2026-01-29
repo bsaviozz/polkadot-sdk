@@ -3,14 +3,17 @@ use crate::crypto::{
     PublicBytes, SignatureBytes, SecretStringError,
 };
 use alloc::vec::Vec;
+use codec::Encode;
+
+// Using qp_rusty_crystals_dilithium library
 use qp_rusty_crystals_dilithium::ml_dsa_87;
 
-// Constants based on ml-dsa-87
-pub const PUBLIC_KEY_LEN: usize = 2592;
-pub const SIGNATURE_LEN: usize = 4627;
+// Byte lengths based on ml-dsa-87
+pub const PUBLIC_KEY_LEN: usize = ml_dsa_87::PUBLICKEYBYTES;
+pub const SIGNATURE_LEN: usize = ml_dsa_87::SIGNBYTES;
 pub const SEED_LEN: usize = 32;
 
-/// Identifier used to match public keys against Dilithium keys
+// Identifier used to match public keys against Dilithium keys
 pub const CRYPTO_ID: CryptoTypeId = CryptoTypeId(*b"dil1");
 
 #[doc(hidden)]
@@ -18,19 +21,36 @@ pub struct DilithiumPublicTag;
 #[doc(hidden)]
 pub struct DilithiumSignatureTag;
 
-/// Public key type (fixed-length bytes like other crypto modules)
+// Public key type (fixed-length bytes like other crypto modules)
 pub type Public = PublicBytes<PUBLIC_KEY_LEN, DilithiumPublicTag>;
 
-/// Signature type
+// Signature type
 pub type Signature = SignatureBytes<SIGNATURE_LEN, DilithiumSignatureTag>;
 
-/// Seed type for keypair generation
-type Seed = [u8; SEED_LEN];
+// The raw secret seed, which can be used to create the `Pair`.
+// Seed is fixed-size array of bytes, each element is one byte (u8)
+type Seed = [u8; SEED_LEN]; 
 
-/// Keypair wrapper
-#[derive(Clone)]
+// Domain-separated hard-derivation step.
+//
+// Domain separation ("DilithiumHDKD") prevents cross-algorithm collisions.
+// Hard derivation is seed-based, so it works for schemes without public derivation.
+fn derive_hard_junction(secret_seed: &Seed, cc: &[u8; 32]) -> Seed {
+    ("DilithiumHDKD", secret_seed, cc).using_encoded(sp_crypto_hashing::blake2_256)
+}
+
+// Dilithium key pair.
 pub struct Pair {
     inner: ml_dsa_87::Keypair,
+    seed: Seed,
+}
+
+// Implement Clone 
+// Cloning a Pair means "same seed -> same keypair".
+impl Clone for Pair {
+    fn clone(&self) -> Self {
+        Pair::from_seed(&self.seed)
+    }
 }
 
 impl TraitPair for Pair {
@@ -39,38 +59,58 @@ impl TraitPair for Pair {
     type Signature = Signature;
     type ProofOfPossession = Signature;
 
-    /// Get the public key.
-    fn public(&self) -> Public {
-        Public::from_raw(self.inner.public.to_bytes())
-    }
 
-    /// Create a keypair from a seed slice.
     fn from_seed_slice(seed: &[u8]) -> Result<Pair, SecretStringError> {
         if seed.len() != SEED_LEN {
             return Err(SecretStringError::InvalidSeedLength);
         }
+
+        // Copy into a fixed-size array so we can retain it.
+        let mut s = [0u8; SEED_LEN];
+        s.copy_from_slice(seed);
+
         Ok(Pair {
-            inner: ml_dsa_87::Keypair::generate(seed),
+            inner: ml_dsa_87::Keypair::generate(&s),
+            seed: s,
         })
     }
 
-    /// No HD derivation for now — just return self.
+    // Returns a derived key
+    //
+    // Soft junctions are rejected because Dilithium does not support public derivation.
+    // Each hard junction updates the seed deterministically.
     fn derive<Iter: Iterator<Item = DeriveJunction>>(
         &self,
-        _path: Iter,
+        path: Iter,
         _seed: Option<Seed>,
     ) -> Result<(Pair, Option<Seed>), DeriveError> {
-        Ok((self.clone(), None))
+        let mut acc = self.seed;
+
+        for j in path {
+            match j {
+                DeriveJunction::Soft(_) => {
+                    // Matches ed25519 behavior: cannot do soft derivation without scheme support.
+                    return Err(DeriveError::SoftKeyInPath);
+                }
+                DeriveJunction::Hard(cc) => {
+                    acc = derive_hard_junction(&acc, &cc);
+                }
+            }
+        }
+
+        Ok((Pair::from_seed(&acc), Some(acc)))
     }
 
-    /// Sign a message.
+    fn public(&self) -> Public {
+        Public::from_raw(self.inner.public.to_bytes())
+    }
+
     #[cfg(feature = "full_crypto")]
     fn sign(&self, message: &[u8]) -> Signature {
-        let sig = self.inner.sign(message, None, None); // [u8; SIGNATURE_LEN]
+        let sig = self.inner.sign(message, None, None);
         Signature::from_raw(sig)
     }
 
-    /// Verify a signature.
     fn verify<M: AsRef<[u8]>>(sig: &Signature, message: M, pubkey: &Public) -> bool {
         let pk = match ml_dsa_87::PublicKey::from_bytes(pubkey.as_ref()) {
             Ok(pk) => pk,
@@ -79,9 +119,10 @@ impl TraitPair for Pair {
         pk.verify(message.as_ref(), sig.as_ref(), None)
     }
 
-    /// Export raw secret key bytes.
+    // Return a vec filled with raw data.
+    // Substrate convention: export the SEED (re-creatable secret),
     fn to_raw_vec(&self) -> Vec<u8> {
-        self.inner.secret.to_bytes().to_vec()
+        self.seed.to_vec()
     }
 }
 
@@ -97,19 +138,6 @@ impl CryptoType for Signature {
 impl CryptoType for Pair {
     type Pair = Pair;
 }
-
-// Verify a Dilithium signature against a message and public key.
-pub fn verify_signature<M: AsRef<[u8]>>(
-    sig: &Signature,
-    message: M,
-    pubkey: &Public,
-) -> bool {
-    match ml_dsa_87::PublicKey::from_bytes(pubkey.as_ref()) {
-        Ok(pk) => pk.verify(message.as_ref(), sig.as_ref(), None),
-        Err(_) => false,
-    }
-}
-
 
 #[cfg(test)]
 mod tests {

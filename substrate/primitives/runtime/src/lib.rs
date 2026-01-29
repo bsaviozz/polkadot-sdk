@@ -278,17 +278,15 @@ impl BuildStorage for () {
 /// Consensus engine unique ID.
 pub type ConsensusEngineId = [u8; 4];
 
+// Need to define a struct DilithiumMultiSig because MultiSignature::verify only gets an AccountId32
+// Unlike ed/sr (accountid = public key bytes because their public key is 32 bytes) and ecdsa (recovery)
+// Dilithium cannot derive the public key from the signature and its public key cannot fit in AccountId32
+// Including the public key is the simplest way to make verification possible
+// It remains secure as long as verification recomputes AccountId32 = blake2_256(public_key) 
+// and checks it equals the claimed signer, and verifies the signature against that public key
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(
-    Eq,
-    PartialEq,
-    Clone,
-    Encode,
-    Decode,
-    DecodeWithMemTracking,
-    MaxEncodedLen,
-    Debug,
-    TypeInfo,
+    Eq, PartialEq, Clone, Encode, Decode, DecodeWithMemTracking, MaxEncodedLen, Debug, TypeInfo,
 )]
 pub struct DilithiumMultiSig {
     pub signature: dilithium::Signature,
@@ -310,6 +308,7 @@ pub enum MultiSignature {
 	Ecdsa(ecdsa::Signature),
 	/// An ECDSA/SECP256k1 signature but with a different address derivation.
 	Eth(ecdsa::KeccakSignature),
+	// A CRYSTAL_Dilithium signature.
 	Dilithium(DilithiumMultiSig),
 }
 
@@ -364,11 +363,26 @@ impl TryFrom<MultiSignature> for ecdsa::Signature {
 	}
 }
 
+// Allow a Dilithium multisignature to be wrapped into the generic `MultiSignature` enum.
 impl From<DilithiumMultiSig> for MultiSignature {
     fn from(x: DilithiumMultiSig) -> Self {
         MultiSignature::Dilithium(x)
     }
 }
+
+// Attempt to extract a Dilithium multisignature from a generic `MultiSignature`.
+impl TryFrom<MultiSignature> for DilithiumMultiSig {
+	type Error = ();
+
+	fn try_from(m: MultiSignature) -> Result<Self, Self::Error> {
+		if let MultiSignature::Dilithium(x) = m {
+			Ok(x)
+		} else {
+			Err(())
+		}
+	}
+}
+
 
 /// Public key for any known crypto algorithm.
 #[derive(
@@ -389,16 +403,18 @@ pub enum MultiSigner {
 	/// `pallet_revive`. This means that the same public key controls two accounts. But
 	/// this is already the case due to `pallet_revive`'s address mapping.
 	Eth(ecdsa::KeccakPublic),
+	// A CRYSTAL-Dilithium identity.
 	Dilithium(dilithium::Public),
 }
 
 impl FromEntropy for MultiSigner {
 	fn from_entropy(input: &mut impl codec::Input) -> Result<Self, codec::Error> {
-		Ok(match input.read_byte()? % 4 {
+		Ok(match input.read_byte()? % 5 {
 			0 => Self::Ed25519(FromEntropy::from_entropy(input)?),
 			1 => Self::Sr25519(FromEntropy::from_entropy(input)?),
 			2 => Self::Ecdsa(FromEntropy::from_entropy(input)?),
-			3.. => Self::Eth(FromEntropy::from_entropy(input)?),
+			3 => Self::Eth(FromEntropy::from_entropy(input)?),
+			4.. => Self::Dilithium(FromEntropy::from_entropy(input)?),
 		})
 	}
 }
@@ -423,6 +439,7 @@ impl AsRef<[u8]> for MultiSigner {
 	}
 }
 
+// Converting a MultiSigner (public identity) into an AccountId32
 impl traits::IdentifyAccount for MultiSigner {
 	type AccountId = AccountId32;
 	fn into_account(self) -> AccountId32 {
@@ -497,12 +514,14 @@ impl TryFrom<MultiSigner> for ecdsa::Public {
 	}
 }
 
+// Allow a Dilithium multisigner (public identity) to be wrapped into the generic `MultiSigner` enum.
 impl From<dilithium::Public> for MultiSigner {
     fn from(pk: dilithium::Public) -> Self {
         MultiSigner::Dilithium(pk)
     }
 }
 
+// Attempt to extract a Dilithium multisigner (public identity) from a generic `MultiSigner`.
 impl TryFrom<MultiSigner> for dilithium::Public {
     type Error = ();
     fn try_from(ms: MultiSigner) -> Result<Self, Self::Error> {
@@ -546,24 +565,11 @@ impl Verify for MultiSignature {
 						&MultiSigner::Eth(pubkey.into()).into_account() == signer
 					})
 			},
-			Self::Dilithium(ds) => {
+			Self::Dilithium(sig) => {
 				sp_io::misc::print_utf8(b"VERIFY: entered Dilithium arm");
 
-				// Recompute AccountId32 from the included public key
-				let derived_id: AccountId32 = blake2_256(ds.public.as_ref()).into();
-				if &derived_id != signer {
-					sp_io::misc::print_utf8(b"VERIFY: Dilithium derived_id != signer");
-					return false;
-				}
+				let ok = sig.verify(msg, signer);
 
-				/*
-				// Verify the signature
-				dilithium::verify_signature(
-					&ds.signature,
-					msg.get(),
-					&ds.public,
-				)*/
-				let ok = dilithium::verify_signature(&ds.signature, msg.get(), &ds.public);
 				if ok {
 					sp_io::misc::print_utf8(b"VERIFY: Dilithium signature OK");
 				} else {

@@ -8,7 +8,11 @@ use codec::Encode;
 // Using qp_rusty_crystals_dilithium library
 use qp_rusty_crystals_dilithium::ml_dsa_87;
 
-// Byte lengths based on ml-dsa-87
+/* Byte lengths based on ml-dsa-44
+pub const PUBLIC_KEY_LEN: usize = ml_dsa_44::PUBLICKEYBYTES;
+pub const SIGNATURE_LEN: usize = ml_dsa_44::SIGNBYTES;
+pub const SEED_LEN: usize = 32; */
+
 pub const PUBLIC_KEY_LEN: usize = ml_dsa_87::PUBLICKEYBYTES;
 pub const SIGNATURE_LEN: usize = ml_dsa_87::SIGNBYTES;
 pub const SEED_LEN: usize = 32;
@@ -69,8 +73,14 @@ impl TraitPair for Pair {
         let mut s = [0u8; SEED_LEN];
         s.copy_from_slice(seed);
 
+        // The generator expects SensitiveBytes32; conversion may zeroize the source,
+        // so feed it a disposable copy.
+        let mut entropy = s;
+
+        let inner = ml_dsa_87::Keypair::generate((&mut entropy).into());
+
         Ok(Pair {
-            inner: ml_dsa_87::Keypair::generate(&s),
+            inner,
             seed: s,
         })
     }
@@ -107,8 +117,19 @@ impl TraitPair for Pair {
 
     #[cfg(feature = "full_crypto")]
     fn sign(&self, message: &[u8]) -> Signature {
-        let sig = self.inner.sign(message, None, None);
+        let sig = self
+            .inner
+            .sign(message, None, None)
+            .expect("ml_dsa_87 signing failed");
         Signature::from_raw(sig)
+
+        /* ml_dsa_44
+        let sig = self
+            .inner
+            .sign(message, None, false) // hedged: bool
+            .expect("ml_dsa_44 signing returned None");
+        Signature::from_raw(sig)
+        */
     }
 
     fn verify<M: AsRef<[u8]>>(sig: &Signature, message: M, pubkey: &Public) -> bool {
@@ -118,6 +139,14 @@ impl TraitPair for Pair {
         };
         pk.verify(message.as_ref(), sig.as_ref(), None)
     }
+
+    /*
+    fn verify<M: AsRef<[u8]>>(sig: &Signature, message: M, pubkey: &Public) -> bool {
+        // pubkey is already fixed-size (PUBLICKEYBYTES) because PublicBytes<N> wraps [u8; N]
+        let pk = ml_dsa_44::PublicKey::from_bytes(pubkey.as_ref());
+        pk.verify(message.as_ref(), sig.as_ref(), None)
+    }*/
+
 
     // Return a vec filled with raw data.
     // Substrate convention: export the SEED (re-creatable secret),

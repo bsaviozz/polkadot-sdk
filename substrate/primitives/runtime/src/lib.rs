@@ -566,16 +566,15 @@ impl Verify for MultiSignature {
 					})
 			},
 			Self::Dilithium(sig) => {
-				// sp_io::misc::print_utf8(b"VERIFY: entered Dilithium arm");
+				sp_io::misc::print_utf8(b"VERIFY: entered Dilithium arm");
 
 				let ok = sig.verify(msg, signer);
 
-				/*
 				if ok {
 					sp_io::misc::print_utf8(b"VERIFY: Dilithium signature OK");
 				} else {
 					sp_io::misc::print_utf8(b"VERIFY: Dilithium signature FAIL");
-				}*/
+				}
 				ok
 			}
 		}

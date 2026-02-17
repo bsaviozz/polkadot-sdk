@@ -18106,11 +18106,11 @@ dependencies = [
 
 [[package]]
 name = "qp-rusty-crystals-dilithium"
-version = "2.1.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d734438e080d69fa186dac23565dd261fa8146048af00ba8aea7467b429c104b"
+checksum = "10a4714f7b30092ec7595ad40a77d43ac0cd76eb802442ac192ab9b835db63ff"
 dependencies = [
- "zeroize",
+ "sha2 0.10.9",
 ]
 
 [[package]]

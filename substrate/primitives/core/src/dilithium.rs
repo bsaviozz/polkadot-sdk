@@ -5,11 +5,11 @@ use crate::crypto::{
 use alloc::vec::Vec;
 use codec::Encode;
 
-use qp_rusty_crystals_dilithium::ml_dsa_44;
+use qp_rusty_crystals_dilithium::ml_dsa_65;
 
-// Byte lengths based on ml-dsa-44
-pub const PUBLIC_KEY_LEN: usize = ml_dsa_44::PUBLICKEYBYTES;
-pub const SIGNATURE_LEN: usize = ml_dsa_44::SIGNBYTES;
+// Byte lengths based on ml-dsa-65
+pub const PUBLIC_KEY_LEN: usize = ml_dsa_65::PUBLICKEYBYTES;
+pub const SIGNATURE_LEN: usize = ml_dsa_65::SIGNBYTES;
 pub const SEED_LEN: usize = 32;
 
 pub const CRYPTO_ID: CryptoTypeId = CryptoTypeId(*b"dil1");
@@ -31,14 +31,14 @@ fn derive_hard_junction(secret_seed: &Seed, cc: &[u8; 32]) -> Seed {
 /// Runtime-compatible verification (works in no_std).
 #[inline]
 pub fn verify_signature<M: AsRef<[u8]>>(sig: &Signature, message: M, pubkey: &Public) -> bool {
-    // qp 1.0.1 ml_dsa_44: PublicKey is available in no_std; Keypair/SecretKey are not.
-    let pk = ml_dsa_44::PublicKey::from_bytes(pubkey.as_ref());
+    // qp 1.0.1 ml_dsa_65: PublicKey is available in no_std; Keypair/SecretKey are not.
+    let pk = ml_dsa_65::PublicKey::from_bytes(pubkey.as_ref());
     pk.verify(message.as_ref(), sig.as_ref(), None)
 }
 
 /// Stub Pair.
 ///
-/// In qp 1.0.1 with feature `no_std`, `ml_dsa_44::Keypair` is compiled out, so we cannot
+/// In qp 1.0.1 with feature `no_std`, `ml_dsa_65::Keypair` is compiled out, so we cannot
 /// implement signing/keygen here. This is OK for *runtime block verification*, which only
 /// needs `verify_signature` above.
 ///
@@ -94,7 +94,7 @@ impl TraitPair for Pair {
 
     #[cfg(feature = "full_crypto")]
     fn sign(&self, _message: &[u8]) -> Signature {
-        panic!("ml_dsa_44::Keypair is not available in qp 1.0.1 with feature `no_std`; signing must be done host-side with a std-enabled implementation");
+        panic!("ml_dsa_65::Keypair is not available in qp 1.0.1 with feature `no_std`; signing must be done host-side with a std-enabled implementation");
     }
 
     fn verify<M: AsRef<[u8]>>(sig: &Signature, message: M, pubkey: &Public) -> bool {

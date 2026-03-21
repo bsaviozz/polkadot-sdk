@@ -1,3 +1,23 @@
+## ⚠️ Fork Notice
+
+This repository is a fork of the Polkadot SDK by Parity Technologies.
+
+It has been modified to support **Dilithium (ML-DSA) signature schemes** for experimental evaluation of post-quantum cryptography in a Substrate-based blockchain.
+
+These changes are intended for research and benchmarking purposes and are not part of the official Polkadot SDK.
+
+## Changes in this fork
+
+- Integrated Dilithium (ML-DSA) signature schemes
+- Modified runtime signature verification logic
+- Extended transaction signing support (Multisignature)
+
+**This branch does not contain any changes**. The implementation can be found in branches: "dilithium", "dilithium-ml-dsa-44" and "dilithium-ml-dsa-65". Each branch implements a different version of dilithium.
+
+## License
+
+This project follows the original licensing of the Polkadot SDK (Apache-2.0, as indicated in file-level headers).
+
 <div align="center">
 
 ![SDK Logo](./docs/images/Polkadot_Logo_Horizontal_Pink_White.png#gh-dark-mode-only)
